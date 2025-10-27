@@ -1,0 +1,10 @@
+name: instance-seg-helper
+contributions:
+  commands:
+    - id: instance-seg-helper.instance_helper
+      title: Add Watershed Region Widget
+      python_name: instance_seg_helper.widgets:AddWatershedRegion
+  widgets:
+    - command: instance-seg-helper.instance_helper
+      display_name: Add Watershed Region
+      autogenerate: False
