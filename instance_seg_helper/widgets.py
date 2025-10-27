@@ -37,6 +37,7 @@ class AddWatershedRegion(Container):
             widget_type="PushButton"
         )
         self.has_done_update=False
+        self.previous_state = None
 
         # append into/extend the container with your widgets
         self.extend([
@@ -67,10 +68,11 @@ class AddWatershedRegion(Container):
         target_label = self.target_image_label.value
 
         if source_label != 0:
+            self.previous_state = target.copy()
+
             target[source == source_label] = target_label
 
             target_layer.refresh()
-            self.last_source_value = source_label
             self.has_done_update = True
 
     def undo(self):
@@ -78,12 +80,8 @@ class AddWatershedRegion(Container):
         target_layer = self.target_image_layer_chooser.value
         if source_layer is None or target_layer is None:
             return
-
-        source = source_layer.data
-        target = target_layer.data
-
-        source_label = self.last_source_value
-        if self.has_done_update:
-            target[source == source_label] = 0
         
+        target_layer.data = self.previous_state
+        self.has_done_update = False # so you can only undo once
+
         target_layer.refresh()
