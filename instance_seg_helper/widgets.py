@@ -54,12 +54,15 @@ class AddWatershedRegion(Container):
         if self.has_done_update:
             # this part is for the pop-up box message
             time_elapsed = time.time() - self.update_timestamp
-            if time_elapsed > 60:
-                self.pop_up_text.value = f"Are you sure you want to undo an action from {round(time_elapsed / 60)} min ago?"
+            if time_elapsed < 10:
+                res = True
             else:
-                self.pop_up_text.value = f"Are you sure you want to undo an action from {round(time_elapsed)} sec ago?"
-            self.dialog_box.show()
-            res = self.dialog_box.exec()
+                if time_elapsed > 60:
+                    self.pop_up_text.value = f"Are you sure you want to undo an action from {round(time_elapsed / 60)} min ago?"
+                else:
+                    self.pop_up_text.value = f"Are you sure you want to undo an action from {round(time_elapsed)} sec ago?"
+                self.dialog_box.show()
+                res = self.dialog_box.exec()
 
             if res:
                 source = self.source_layer.value
