@@ -2,9 +2,15 @@ name: instance-seg-helper
 contributions:
   commands:
     - id: instance-seg-helper.instance_helper
-      title: Add Watershed Region Widget
+      title: Add watershed region copying widget
       python_name: instance_seg_helper.widgets:AddWatershedRegion
+    - id: instance-seg-helper.platelet_vis_3D
+      title: Add single platelet visualisation widget
+      python_name: instance_seg_helper.widgets:PlateletVis3D
   widgets:
     - command: instance-seg-helper.instance_helper
       display_name: Add Watershed Region
+      autogenerate: False
+    - command: instance-seg-helper.platelet_vis_3D
+      display_name: Visualise Single Platelet
       autogenerate: False
