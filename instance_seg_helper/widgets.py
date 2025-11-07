@@ -101,9 +101,9 @@ class PlateletVis3D(Container):
         super().__init__()
         self._viewer = viewer
 
-        self.source_layer = create_widget(label="Source image", annotation="napari.layers.Labels")
-        self.source_label = create_widget(label="Source label", annotation=int)
-        self.run_button = create_widget(label="Visualise", widget_type="PushButton")
+        self.source_layer = create_widget(label="Image", annotation="napari.layers.Labels")
+        self.source_label = create_widget(label="Label", annotation=int)
+        self.run_button = create_widget(label="Visualise in 3D", widget_type="PushButton")
         self.cancel_button = create_widget(label="Cancel Visualisation", widget_type="PushButton")
 
         self.extend([
@@ -124,12 +124,15 @@ class PlateletVis3D(Container):
             return
 
         self.label = self.source_label.value
-
-        # this is setting every layer to be non-visible and keeping track of the visibility state
-        self.layer_vis_dict = {}
-        for layer in self._viewer.layers:
-            self.layer_vis_dict[layer.name] = layer.visible
-            layer.visible = False
+        # if a visualisation is already active, delete it. Otherwise turn off the other layers.
+        if self.vis_active:
+            if f"object {self.last_label}" in self._viewer.layers:
+                self._viewer.layers.remove(f"object {self.last_label}")
+        else:  # this is setting every layer to be non-visible and keeping track of the visibility state
+            self.layer_vis_dict = {}
+            for layer in self._viewer.layers:
+                self.layer_vis_dict[layer.name] = layer.visible
+                layer.visible = False
 
         # we make a smaller array of just the platelet labelled "label"
         idxs = np.where(source.data == self.label)
@@ -146,6 +149,7 @@ class PlateletVis3D(Container):
         # set the point the camera rotates around to the centre of the platelet instead of the centre of the whole instance segmentation
         self._viewer.camera.center = ((max_z - min_z)//2, (max_y - min_y)//2, (max_x - min_x)//2)
         self.vis_active = True
+        self.last_label = self.label
 
     def cancel_vis(self):
         if self.vis_active:
