@@ -135,11 +135,7 @@ class PlateletVis3D(Container):
                 layer.visible = False
 
         # we make a smaller array of just the platelet labelled "label"
-        idxs = np.where(source.data == self.label)
-        min_z, max_z = idxs[0].min(), idxs[0].max()
-        min_y, max_y = idxs[1].min(), idxs[1].max()
-        min_x, max_x = idxs[2].min(), idxs[2].max()
-
+        min_z, max_z,min_y, max_y,min_x, max_x = get_bbox(source.data, self.label)
         self.platelet_vis = source.data[min_z:max_z,min_y:max_y,min_x:max_x].copy()
         self.platelet_vis[self.platelet_vis != self.label] = 0  # get rid of anything else in the bounding box
 
