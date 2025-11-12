@@ -54,6 +54,8 @@ class AddWatershedRegion(Container):
 
         self.run_button.clicked.connect(self.update_image)
         self.undo_button.clicked.connect(self.undo)
+        # this updates the layer names in the dropdown menu when you change the active layer
+        self._viewer.layers.selection.events.changed.connect(self.reset_choices)
 
     def update_image(self):
         source = self.source_layer.value
@@ -117,6 +119,8 @@ class PlateletVis3D(Container):
 
         self.run_button.clicked.connect(self.vis_image_3D)
         self.cancel_button.clicked.connect(self.cancel_vis)
+        # this updates the layer names in the dropdown menu when you change the active layer
+        self._viewer.layers.selection.events.changed.connect(self.reset_choices)
 
     def vis_image_3D(self):
         source = self.source_layer.value
