@@ -30,8 +30,10 @@ class AddWatershedRegion(Container):
         super().__init__()
         self._viewer = viewer
 
-        self.has_done_update=False
+        self.has_done_update = False
         self.previous_state = None
+        self._coords_exist = False
+        self.box_mode = False
 
         self.source_layer = create_widget(label="Source image", annotation="napari.layers.Labels")
         self.source_label = create_widget(label="Source label", annotation=int)
@@ -39,6 +41,7 @@ class AddWatershedRegion(Container):
         self.target_label = create_widget(label="Target label", annotation=int)
         self.run_button = create_widget(label="Run", widget_type="PushButton")
         self.undo_button = create_widget(label="Undo", widget_type="PushButton")
+        self.box_mode_button = create_widget(label="Enable box mode", widget_type="PushButton")
 
         self.extend([
             self.source_layer,
@@ -46,7 +49,8 @@ class AddWatershedRegion(Container):
             self.target_layer,
             self.target_label,
             self.run_button,
-            self.undo_button
+            self.undo_button,
+            self.box_mode_button
         ])
 
         self.pop_up_text = Label(value="")
@@ -54,8 +58,10 @@ class AddWatershedRegion(Container):
 
         self.run_button.clicked.connect(self.update_image)
         self.undo_button.clicked.connect(self.undo)
+        self.box_mode_button.clicked.connect(self._box_mode_toggle)
         # this updates the layer names in the dropdown menu when you change the active layer
         self._viewer.layers.selection.events.changed.connect(self.reset_choices)
+
 
     def update_image(self):
         source = self.source_layer.value
@@ -67,8 +73,15 @@ class AddWatershedRegion(Container):
         target_label = self.target_label.value
 
         if source_label != 0:
-            self.previous_state = target.data.copy()
-            target.data[source.data == source_label] = target_label
+            self.previous_state = target.data.copy()  # copy current state for undo function
+
+            if self.box_mode and self._coords_exist: # if box mode is active only copy the labels within the box
+                self.prev_coords = self.ymin, self.ymax, self.xmin, self.xmax # save the current shape
+                s0, s1, s2 = slice(None), slice(self.ymin, self.ymax), slice(self.xmin, self.xmax)
+                target.data[s0, s1, s2][source.data[s0, s1, s2] == source_label] = target_label
+            else: # if box_mode isn't active, copy the label globally
+                target.data[source.data == source_label] = target_label
+
             target.refresh()
             self.has_done_update = True
             self.update_timestamp = time.time()
@@ -96,6 +109,45 @@ class AddWatershedRegion(Container):
                 target.data = self.previous_state
                 self.has_done_update = False # so you can only undo once
                 target.refresh()
+
+    def _box_mode_toggle(self):
+        self.box_mode  = not self.box_mode  # swap the toggle
+        if self.box_mode:
+            self.box_mode_button.text = "Disable box mode"
+
+            # add a layer for the box
+            if "Select region" not in self._viewer.layers:
+                self.shapes_layer = self._viewer.add_shapes(
+                    name="Select region",
+                    face_color='transparent',
+                    edge_color='cyan',
+                    edge_width=2,
+                    ndim=2,
+                )
+            else:
+                self.shapes_layer = self._viewer.layers["Select region"]
+
+            self.shapes_layer.events.data.connect(self._on_shape_added)
+        else:
+            self.box_mode_button.text = "Enable box mode"
+            self.shapes_layer.events.data.disconnect(self._on_shape_added)
+            if "Select region" in self._viewer.layers:
+                self._viewer.layers.remove("Select region")
+
+    def _on_shape_added(self, event):
+
+        if event.action == "added":
+            # delete any previous shape
+            self.shapes_layer.data = self.shapes_layer.data[-1:]
+
+            last_shape_data = self.shapes_layer.data[0]
+
+            self.ymin = int(last_shape_data[:,0].min())
+            self.ymax = int(last_shape_data[:,0].max())
+            self.xmin = int(last_shape_data[:,1].min())
+            self.xmax = int(last_shape_data[:,1].max())
+
+            self._coords_exist = True
 
 
 class PlateletVis3D(Container):
