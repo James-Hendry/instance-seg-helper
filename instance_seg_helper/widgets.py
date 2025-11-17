@@ -148,7 +148,7 @@ class AddWatershedRegion(Container):
 
             self.shapes_layer.events.data.connect(self._on_shape_added)
         else:
-            self.box_mode_button.text = "Enable box mode"
+            self.box_mode_button.text = "Enable shape selection mode"
             self.shapes_layer.events.data.disconnect(self._on_shape_added)
             if "Select region" in self._viewer.layers:
                 self._viewer.layers.remove("Select region")
