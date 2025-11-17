@@ -4,6 +4,7 @@ from magicgui.widgets import Container, create_widget, Dialog, Label
 import numpy as np
 import time
 import numba
+from skimage.draw import polygon
 
 @numba.njit
 def get_bbox(arr, idx):
@@ -47,7 +48,7 @@ class AddWatershedRegion(Container):
                                         options={"min": 0, "max": maxval, "value": (0, maxval)})
         self.run_button = create_widget(label="Run", widget_type="PushButton")
         self.undo_button = create_widget(label="Undo", widget_type="PushButton")
-        self.box_mode_button = create_widget(label="Enable box mode", widget_type="PushButton")
+        self.box_mode_button = create_widget(label="Enable shape selection mode", widget_type="PushButton")
 
         self.extend([
             self.source_layer,
@@ -86,15 +87,17 @@ class AddWatershedRegion(Container):
         if source_label != 0:
             self.previous_state = target.data.copy()  # copy current state for undo function
             z0, z1 = self.slice_range.value
-            if self.box_mode and self._coords_exist: # if box mode is active only copy the labels within the box
-                y0, y1, x0, x1 = self.ymin, self.ymax, self.xmin, self.xmax
-                self.prev_coords =  z0, z1, y0, y1, x0, x1 # save the current shape
-            else: # if box_mode isn't active, copy the label globally
-                y0, y1, x0, x1 = 0, shape[-2], 0, shape[-1]
-                self.prev_coords =  z0, z1, y0, y1, x0, x1 # save the current shape
 
-            # copy label from source layer to target layer within a slice range within an xy box (if provided)
-            target.data[z0:z1, y0:y1, x0:x1][source.data[z0:z1, y0:y1, x0:x1] == source_label] = target_label
+            # using shape mode (only copying regions based on a shape selection)
+            if self.box_mode and self._coords_exist: # if box mode is active only copy the labels within the box
+                self.prev_coords =  z0, z1, self.y0, self.y1, self.x0, self.x1 # save the current shape
+                # copy label from source layer to target layer within a slice range within a polygon mask
+                target.data[z0:z1, self.y0:self.y1, self.x0:self.x1][(source.data[z0:z1, self.y0:self.y1, self.x0:self.x1] == source_label) & self.mask] = target_label
+
+            else: # if box_mode isn't active, copy the label globally
+                self.prev_coords =  z0, z1, 0, shape[-2], 0, shape[-1] # save the current shape
+                # copy label from source layer to target layer within a slice range
+                target.data[z0:z1][source.data[z0:z1] == source_label] = target_label
 
             target.refresh()
             self.has_done_update = True
@@ -129,15 +132,15 @@ class AddWatershedRegion(Container):
     def _box_mode_toggle(self):
         self.box_mode  = not self.box_mode  # swap the toggle
         if self.box_mode:
-            self.box_mode_button.text = "Disable box mode"
+            self.box_mode_button.text = "Disable shape selection mode"
 
             # add a layer for the box
             if "Select region" not in self._viewer.layers:
                 self.shapes_layer = self._viewer.add_shapes(
                     name="Select region",
-                    face_color="transparent",
+                    face_color="#FFFFFFCC",
                     edge_color="cyan",
-                    edge_width=2,
+                    edge_width=4,
                     ndim=2,
                 )
             else: # there might be some edge case where the layer already exists
@@ -162,15 +165,34 @@ class AddWatershedRegion(Container):
 
         if event.action == "added": # this occurs when you finish drawing a shape 
             # delete any previous shape
-            self.shapes_layer.data = self.shapes_layer.data[-1:]
+            if len(self.shapes_layer.data) > 1:
+                self.shapes_layer.selected_data = {0}
+                try:
+                    self.shapes_layer.remove_selected()
+                    #self.shapes_layer.remove([0])  # this is what the line would be in napari >=0.6.5. The "selected_data" line above would also be removed
+                except:
+                    pass
+                self.shapes_layer.refresh()  # needs to be refreshed to display correctly
 
-            last_shape_data = self.shapes_layer.data[0]
+            vertices = self.shapes_layer.data[0].astype(int)
 
-            self.ymin = int(last_shape_data[:,0].min())
-            self.ymax = int(last_shape_data[:,0].max())
-            self.xmin = int(last_shape_data[:,1].min())
-            self.xmax = int(last_shape_data[:,1].max())
+            # position of the bounding box in original coordinates. +1 because index 10 requires an array of length >= 11
+            self.y0 = vertices[:,0].min()
+            self.y1 = vertices[:,0].max() + 1
+            self.x0 = vertices[:,1].min()
+            self.x1 = vertices[:,1].max() + 1
 
+            # reposition so the coordinates are relative to the bounding box of the shape
+            vertices[:,0] -= self.y0
+            vertices[:,1] -= self.x0
+
+            sub_shape = (self.y1-self.y0, self.x1-self.x0)
+            # mask is a boolean array for indexing
+            mask = np.zeros(sub_shape, dtype=bool)
+            rr, cc = polygon(vertices[:,0], vertices[:,1], sub_shape)
+            mask[rr,cc] = True
+
+            self.mask = mask
             self._coords_exist = True
 
 
