@@ -32,13 +32,19 @@ class AddWatershedRegion(Container):
 
         self.has_done_update = False
         self.previous_state = None
-        self._coords_exist = False
+        self._coords_exist = False # safety so we don't try to access box coords before the box has been drawn
         self.box_mode = False
+
+        # this is just to get a default value for the slice slider if the layers have already been loaded
+        if self._viewer.layers:
+            maxval = self._viewer.layers[0].data.shape[0]
 
         self.source_layer = create_widget(label="Source image", annotation="napari.layers.Labels")
         self.source_label = create_widget(label="Source label", annotation=int)
         self.target_layer = create_widget(label="Target image", annotation="napari.layers.Labels")
         self.target_label = create_widget(label="Target label", annotation=int)
+        self.slice_range = create_widget(label="Copy in range", widget_type="RangeSlider",
+                                        options={"min": 0, "max": maxval, "value": (0, maxval)})
         self.run_button = create_widget(label="Run", widget_type="PushButton")
         self.undo_button = create_widget(label="Undo", widget_type="PushButton")
         self.box_mode_button = create_widget(label="Enable box mode", widget_type="PushButton")
@@ -48,6 +54,7 @@ class AddWatershedRegion(Container):
             self.source_label,
             self.target_layer,
             self.target_label,
+            self.slice_range,
             self.run_button,
             self.undo_button,
             self.box_mode_button
@@ -61,6 +68,8 @@ class AddWatershedRegion(Container):
         self.box_mode_button.clicked.connect(self._box_mode_toggle)
         # this updates the layer names in the dropdown menu when you change the active layer
         self._viewer.layers.selection.events.changed.connect(self.reset_choices)
+        # this updates the maximum allowable value in the range slider to the number of slices in the active layer
+        self._viewer.layers.selection.events.changed.connect(self._update_slider)
 
 
     def update_image(self):
@@ -68,29 +77,35 @@ class AddWatershedRegion(Container):
         target = self.target_layer.value
         if source is None or target is None:
             return
+        
+        shape = source.data.shape
 
         source_label = self.source_label.value
         target_label = self.target_label.value
 
         if source_label != 0:
             self.previous_state = target.data.copy()  # copy current state for undo function
-
+            z0, z1 = self.slice_range.value
             if self.box_mode and self._coords_exist: # if box mode is active only copy the labels within the box
-                self.prev_coords = self.ymin, self.ymax, self.xmin, self.xmax # save the current shape
-                s0, s1, s2 = slice(None), slice(self.ymin, self.ymax), slice(self.xmin, self.xmax)
-                target.data[s0, s1, s2][source.data[s0, s1, s2] == source_label] = target_label
+                y0, y1, x0, x1 = self.ymin, self.ymax, self.xmin, self.xmax
+                self.prev_coords =  z0, z1, y0, y1, x0, x1 # save the current shape
             else: # if box_mode isn't active, copy the label globally
-                target.data[source.data == source_label] = target_label
+                y0, y1, x0, x1 = 0, shape[-2], 0, shape[-1]
+                self.prev_coords =  z0, z1, y0, y1, x0, x1 # save the current shape
+
+            # copy label from source layer to target layer within a slice range within an xy box (if provided)
+            target.data[z0:z1, y0:y1, x0:x1][source.data[z0:z1, y0:y1, x0:x1] == source_label] = target_label
 
             target.refresh()
             self.has_done_update = True
-            self.update_timestamp = time.time()
+            self.update_timestamp = time.time()  # this is for the undo safety popup
+
 
     def undo(self):
-        if self.has_done_update:
+        if self.has_done_update:  # only undo if there is something to undo
             # this part is for the pop-up box message
             time_elapsed = time.time() - self.update_timestamp
-            if time_elapsed < 10:
+            if time_elapsed < 10: # no pop-up if it's been less than 10 sec
                 res = True
             else:
                 if time_elapsed > 60:
@@ -110,6 +125,7 @@ class AddWatershedRegion(Container):
                 self.has_done_update = False # so you can only undo once
                 target.refresh()
 
+
     def _box_mode_toggle(self):
         self.box_mode  = not self.box_mode  # swap the toggle
         if self.box_mode:
@@ -119,12 +135,12 @@ class AddWatershedRegion(Container):
             if "Select region" not in self._viewer.layers:
                 self.shapes_layer = self._viewer.add_shapes(
                     name="Select region",
-                    face_color='transparent',
-                    edge_color='cyan',
+                    face_color="transparent",
+                    edge_color="cyan",
                     edge_width=2,
                     ndim=2,
                 )
-            else:
+            else: # there might be some edge case where the layer already exists
                 self.shapes_layer = self._viewer.layers["Select region"]
 
             self.shapes_layer.events.data.connect(self._on_shape_added)
@@ -134,9 +150,17 @@ class AddWatershedRegion(Container):
             if "Select region" in self._viewer.layers:
                 self._viewer.layers.remove("Select region")
 
+
+    def _update_slider(self):
+        layer = self._viewer.layers.selection.active
+        # if there is a layer and it's either an Image or a Labels layer
+        if layer is not None and (isinstance(layer, napari.layers.Image) or isinstance(layer, napari.layers.Labels)):
+            self.slice_range.max = layer.data.shape[0]
+
+
     def _on_shape_added(self, event):
 
-        if event.action == "added":
+        if event.action == "added": # this occurs when you finish drawing a shape 
             # delete any previous shape
             self.shapes_layer.data = self.shapes_layer.data[-1:]
 
