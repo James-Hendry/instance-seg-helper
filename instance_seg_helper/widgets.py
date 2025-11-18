@@ -36,6 +36,9 @@ class AddWatershedRegion(Container):
         self._coords_exist = False # safety so we don't try to access box coords before the box has been drawn
         self.box_mode = False
 
+        # This is so the button text remains consistent everywhere (it is updated in multiple places)
+        self.__selection_text = "shape selection mode"
+
         # this is just to get a default value for the slice slider if the layers have already been loaded
         if self._viewer.layers:
             maxval = self._viewer.layers[0].data.shape[0]
@@ -48,7 +51,7 @@ class AddWatershedRegion(Container):
                                         options={"min": 0, "max": maxval, "value": (0, maxval)})
         self.run_button = create_widget(label="Run", widget_type="PushButton")
         self.undo_button = create_widget(label="Undo", widget_type="PushButton")
-        self.box_mode_button = create_widget(label="Enable shape selection mode", widget_type="PushButton")
+        self.box_mode_button = create_widget(label="Enable " + self.__selection_text, widget_type="PushButton")
 
         self.extend([
             self.source_layer,
@@ -78,8 +81,6 @@ class AddWatershedRegion(Container):
         target = self.target_layer.value
         if source is None or target is None:
             return
-        
-        shape = source.data.shape
 
         source_label = self.source_label.value
         target_label = self.target_label.value
@@ -95,7 +96,7 @@ class AddWatershedRegion(Container):
                 target.data[z0:z1, self.y0:self.y1, self.x0:self.x1][(source.data[z0:z1, self.y0:self.y1, self.x0:self.x1] == source_label) & self.mask] = target_label
 
             else: # if box_mode isn't active, copy the label globally
-                self.prev_coords =  z0, z1, 0, shape[-2], 0, shape[-1] # save the current shape
+                self.prev_coords =  z0, z1, 0, source.data.shape[-2], 0, source.data.shape[-1] # save the current shape
                 # copy label from source layer to target layer within a slice range
                 target.data[z0:z1][source.data[z0:z1] == source_label] = target_label
 
@@ -132,7 +133,7 @@ class AddWatershedRegion(Container):
     def _box_mode_toggle(self):
         self.box_mode  = not self.box_mode  # swap the toggle
         if self.box_mode:
-            self.box_mode_button.text = "Disable shape selection mode"
+            self.box_mode_button.text = "Disable " + self.__selection_text
 
             # add a layer for the box
             if "Select region" not in self._viewer.layers:
@@ -148,7 +149,7 @@ class AddWatershedRegion(Container):
 
             self.shapes_layer.events.data.connect(self._on_shape_added)
         else:
-            self.box_mode_button.text = "Enable shape selection mode"
+            self.box_mode_button.text = "Enable " + self.__selection_text
             self.shapes_layer.events.data.disconnect(self._on_shape_added)
             if "Select region" in self._viewer.layers:
                 self._viewer.layers.remove("Select region")
@@ -230,7 +231,8 @@ class PlateletVis3D(Container):
         if self.vis_active:
             if f"object {self.last_label}" in self._viewer.layers:
                 self._viewer.layers.remove(f"object {self.last_label}")
-        else:  # this is setting every layer to be non-visible and keeping track of the visibility state
+        else:  # this is setting every layer to be non-visible and keeping track of the visibility state and the active layer
+            self.active_layer = self._viewer.layers.selection.active
             self.layer_vis_dict = {}
             for layer in self._viewer.layers:
                 self.layer_vis_dict[layer.name] = layer.visible
@@ -249,6 +251,7 @@ class PlateletVis3D(Container):
         self.vis_active = True
         self.last_label = self.label
 
+
     def cancel_vis(self):
         if self.vis_active:
             self._viewer.dims.ndisplay = 2  # set the viewer back to 2D
@@ -258,5 +261,7 @@ class PlateletVis3D(Container):
             # set all the visibilities to what they used to be
             for layer_name in self.layer_vis_dict.keys():
                 self._viewer.layers[layer_name].visible = self.layer_vis_dict[layer_name]
+            # set active layer to what it was before
+            self._viewer.layers.selection.active = self.active_layer
             # stop it trying to undo the visualisation again
             self.vis_active = False
