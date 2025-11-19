@@ -35,19 +35,21 @@ class AddWatershedRegion(Container):
         self.previous_state = None
         self._coords_exist = False # safety so we don't try to access box coords before the box has been drawn
         self.box_mode = False
+        self.inclusive_range = True
 
         # This is so the button text remains consistent everywhere (it is updated in multiple places)
         self.__selection_text = "shape selection mode"
 
         # this is just to get a default value for the slice slider if the layers have already been loaded
         if self._viewer.layers:
-            maxval = self._viewer.layers[0].data.shape[0]
+            # Optionally treat the upper bound of the range as inclusive by adding/subtracting a boolean
+            maxval = self._viewer.layers[0].data.shape[0] - self.inclusive_range
 
         self.source_layer = create_widget(label="Source image", annotation="napari.layers.Labels")
         self.source_label = create_widget(label="Source label", annotation=int)
         self.target_layer = create_widget(label="Target image", annotation="napari.layers.Labels")
         self.target_label = create_widget(label="Target label", annotation=int)
-        self.slice_range = create_widget(label="Copy in range", widget_type="RangeSlider",
+        self.slice_range = create_widget(label="Copy in z range", widget_type="RangeSlider",
                                         options={"min": 0, "max": maxval, "value": (0, maxval)})
         self.run_button = create_widget(label="Run", widget_type="PushButton")
         self.undo_button = create_widget(label="Undo", widget_type="PushButton")
@@ -87,7 +89,7 @@ class AddWatershedRegion(Container):
 
         if source_label != 0:
             self.previous_state = target.data.copy()  # copy current state for undo function
-            z0, z1 = self.slice_range.value
+            z0, z1 = self.slice_range.value[0], self.slice_range.value[1] + self.inclusive_range
 
             # using shape mode (only copying regions based on a shape selection)
             if self.box_mode and self._coords_exist: # if box mode is active only copy the labels within the box
@@ -159,7 +161,7 @@ class AddWatershedRegion(Container):
         layer = self._viewer.layers.selection.active
         # if there is a layer and it's either an Image or a Labels layer
         if layer is not None and (isinstance(layer, napari.layers.Image) or isinstance(layer, napari.layers.Labels)):
-            self.slice_range.max = layer.data.shape[0]
+            self.slice_range.max = layer.data.shape[0] - self.inclusive_range
 
 
     def _on_shape_added(self, event):
