@@ -1,6 +1,7 @@
 # widgets
 import napari
 from magicgui.widgets import Container, create_widget, Dialog, Label
+from qtpy.QtWidgets import QMessageBox
 import numpy as np
 import time
 import numba
@@ -24,6 +25,13 @@ def get_bbox(arr, idx):
                     if x > max_x: max_x = x
     
     return min_z, max_z,min_y, max_y,min_x, max_x
+
+
+def show_error(message="Invalid input"):
+    msg = QMessageBox()
+    msg.setText(message)
+    msg.setStandardButtons(QMessageBox.Ok)
+    msg.exec_()  # block until OK is pressed
 
 
 class AddWatershedRegion(Container):
@@ -231,6 +239,10 @@ class PlateletVis3D(Container):
             return
 
         self.label = self.source_label.value
+
+        if self.label not in source.data: # only proceed if the label is actually in the layer
+            show_error(f"Error:label {self.label} is not present in layer {self.source_layer.value}")
+            return
         # if a visualisation is already active, delete it. Otherwise turn off the other layers.
         if self.vis_active:
             if f"object {self.last_label}" in self._viewer.layers:
