@@ -91,6 +91,7 @@ class AddWatershedRegion(Container):
 
         if source_label != 0:
             self.previous_state = target.data.copy()  # copy current state for undo function
+            self.previous_target = target # keep track of what layer we changed
             z0, z1 = self.slice_range.value[0], self.slice_range.value[1] + self.inclusive_range
 
             # using shape mode (only copying regions based on a shape selection)
@@ -124,12 +125,11 @@ class AddWatershedRegion(Container):
                 res = self.dialog_box.exec()
 
             if res:
-                source = self.source_layer.value
-                target = self.target_layer.value
-                if source is None or target is None:
+                target = self.previous_target
+                if target is None or target not in self._viewer.layers:
                     return
-
-                target.data = self.previous_state
+                # [...] makes it so the target layer data is updated in-place to avoid breaking
+                target.data[...] = self.previous_state
                 self.has_done_update = False # so you can only undo once
                 target.refresh()
 
