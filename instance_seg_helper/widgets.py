@@ -44,6 +44,8 @@ class AddWatershedRegion(Container):
         if self._viewer.layers:
             # Optionally treat the upper bound of the range as inclusive by adding/subtracting a boolean
             maxval = self._viewer.layers[0].data.shape[0] - self.inclusive_range
+        else:
+            maxval = 999
 
         self.source_layer = create_widget(label="Source image", annotation="napari.layers.Labels")
         self.source_label = create_widget(label="Source label", annotation=int)
