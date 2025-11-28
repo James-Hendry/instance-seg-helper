@@ -34,6 +34,13 @@ def show_error(message="Invalid input"):
     msg.exec_()  # block until OK is pressed
 
 
+# This is just a minimal class to make PlateletVis3D not conflict with AddWatershedRegion
+class vis3D(napari.layers.Labels):
+    def __init__(self, data, *args, **kwargs):
+        super().__init__(data, *args, **kwargs)
+        self.is_vis3D = True
+
+
 class AddWatershedRegion(Container):
     def __init__(self, viewer: "napari.viewer.Viewer"):
         super().__init__()
@@ -263,14 +270,12 @@ class PlateletVis3D(Container):
         self.platelet_vis[self.platelet_vis != self.label] = 0  # get rid of anything else in the bounding box
 
         # add the platelet as a new layer and set the viewer to 3D
-        self._viewer.add_labels(self.platelet_vis, name=f"object {self.label}", colormap=source.colormap)
+        self._viewer.add_layer(vis3D(self.platelet_vis, name=f"object {self.label}", colormap=source.colormap))
         self._viewer.dims.ndisplay = 3
         # set the point the camera rotates around to the centre of the platelet instead of the centre of the whole instance segmentation
         self._viewer.camera.center = ((max_z - min_z)//2, (max_y - min_y)//2, (max_x - min_x)//2)
         self.vis_active = True
         self.last_label = self.label
-        # makes the layer invisible to AddWatershedRegion so it doesn't conflict
-        self._viewer.layers[f"object {self.label}"].is_vis3D = True
 
 
     def cancel_vis(self):
