@@ -170,8 +170,11 @@ class AddWatershedRegion(Container):
     def _update_slider(self):
         layer = self._viewer.layers.selection.active
         # if there is a layer and it's either an Image or a Labels layer
-        if layer is not None and (isinstance(layer, napari.layers.Image) or isinstance(layer, napari.layers.Labels)):
-            self.slice_range.max = layer.data.shape[0] - self.inclusive_range
+        if layer is not None and isinstance(layer, (napari.layers.Image, napari.layers.Labels)):
+            # to prevent PlateletVis3D from updating the slice range maximum
+            # the order means that this doesn't error if the layer doesn't have the is_vis3D attribute
+            if not (hasattr(layer, "is_vis3D") and layer.is_vis3D):
+                self.slice_range.max = layer.data.shape[0] - self.inclusive_range
 
 
     def _on_shape_added(self, event):
@@ -241,7 +244,7 @@ class PlateletVis3D(Container):
         self.label = self.source_label.value
 
         if self.label not in source.data: # only proceed if the label is actually in the layer
-            show_error(f"Error:label {self.label} is not present in layer {self.source_layer.value}")
+            show_error(f"Error: label '{self.label}' is not present in layer '{self.source_layer.value}'")
             return
         # if a visualisation is already active, delete it. Otherwise turn off the other layers.
         if self.vis_active:
@@ -266,6 +269,8 @@ class PlateletVis3D(Container):
         self._viewer.camera.center = ((max_z - min_z)//2, (max_y - min_y)//2, (max_x - min_x)//2)
         self.vis_active = True
         self.last_label = self.label
+        # makes the layer invisible to AddWatershedRegion so it doesn't conflict
+        self._viewer.layers[f"object {self.label}"].is_vis3D = True
 
 
     def cancel_vis(self):
