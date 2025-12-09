@@ -68,7 +68,8 @@ class AddWatershedRegion(Container):
         self.target_label = create_widget(label="Target label", annotation=int)
         self.slice_range = create_widget(label="Copy in z range", widget_type="RangeSlider",
                                         options={"min": 0, "max": maxval, "value": (0, maxval)})
-        self.run_button = create_widget(label="Run", widget_type="PushButton")
+        self.run_button = create_widget(label="Run for z range", widget_type="PushButton")
+        self.run_button_1slice = create_widget(label="Run for current slice", widget_type="PushButton")
         self.undo_button = create_widget(label="Undo", widget_type="PushButton")
         self.box_mode_button = create_widget(label="Enable " + self.__selection_text, widget_type="PushButton")
 
@@ -79,6 +80,7 @@ class AddWatershedRegion(Container):
             self.target_label,
             self.slice_range,
             self.run_button,
+            self.run_button_1slice,
             self.undo_button,
             self.box_mode_button
         ])
@@ -86,7 +88,8 @@ class AddWatershedRegion(Container):
         self.pop_up_text = Label(value="")
         self.dialog_box = Dialog(widgets=[self.pop_up_text], layout="vertical")
 
-        self.run_button.clicked.connect(self.update_image)
+        self.run_button.clicked.connect(lambda: self.update_image(curr_slice=False))
+        self.run_button_1slice.clicked.connect(lambda: self.update_image(curr_slice=True))
         self.undo_button.clicked.connect(self.undo)
         self.box_mode_button.clicked.connect(self._box_mode_toggle)
         # this updates the layer names in the dropdown menu when you change the active layer
@@ -95,7 +98,7 @@ class AddWatershedRegion(Container):
         self._viewer.layers.selection.events.changed.connect(self._update_slider)
 
 
-    def update_image(self):
+    def update_image(self, curr_slice):
         source = self.source_layer.value
         target = self.target_layer.value
         if source is None or target is None:
@@ -107,7 +110,10 @@ class AddWatershedRegion(Container):
         if source_label != 0:
             self.previous_state = target.data.copy()  # copy current state for undo function
             self.previous_target = target # keep track of what layer we changed
-            z0, z1 = self.slice_range.value[0], self.slice_range.value[1] + self.inclusive_range
+            if curr_slice:
+                z0, z1 = self._viewer.dims.current_step[0], self._viewer.dims.current_step[0] + 1
+            else:
+                z0, z1 = self.slice_range.value[0], self.slice_range.value[1] + self.inclusive_range
 
             # using shape mode (only copying regions based on a shape selection)
             if self.box_mode and self._coords_exist: # if box mode is active only copy the labels within the box
