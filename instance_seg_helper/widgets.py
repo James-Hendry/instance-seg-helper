@@ -197,23 +197,40 @@ class AddWatershedRegion(Container):
                     pass
                 self.shapes_layer.refresh()  # needs to be refreshed to display correctly
 
+            target = self.target_layer.value
+            if target is None:
+                return
+            img_shape = target.data.shape
+
             vertices = self.shapes_layer.data[0].astype(int)
+            ys, xs = vertices[:,0], vertices[:,1]
 
             # position of the bounding box in original coordinates. +1 because index 10 requires an array of length >= 11
-            self.y0 = vertices[:,0].min()
-            self.y1 = vertices[:,0].max() + 1
-            self.x0 = vertices[:,1].min()
-            self.x1 = vertices[:,1].max() + 1
+            # this can be off the edge of the image, a suffix is for absolute
+            y0a, y1a = ys.min(), ys.max() + 1
+            x0a, x1a = xs.min(), xs.max() + 1
+
+            # clipped min and max so we only index within the image
+            self.y0, self.y1 = max(y0a, 0), min(y1a, img_shape[-2])
+            self.x0, self.x1 = max(x0a, 0), min(x1a, img_shape[-1])
 
             # reposition so the coordinates are relative to the bounding box of the shape
-            vertices[:,0] -= self.y0
-            vertices[:,1] -= self.x0
+            ys -= y0a
+            xs -= x0a
 
-            sub_shape = (self.y1-self.y0, self.x1-self.x0)
+            sub_shape = (y1a-y0a, x1a-x0a)
             # mask is a boolean array for indexing
             mask = np.zeros(sub_shape, dtype=bool)
-            rr, cc = polygon(vertices[:,0], vertices[:,1], sub_shape)
+            rr, cc = polygon(ys, xs, sub_shape)
             mask[rr,cc] = True
+
+            # to slice the mask to only the parts within the image
+            y0s = -y0a if y0a < 0 else 0 
+            y1s = img_shape[-2] - y1a if y1a > img_shape[-2] else mask.shape[0]
+            x0s = -x0a if x0a < 0 else 0
+            x1s = img_shape[-1] - x1a if x1a > img_shape[-1] else mask.shape[1]
+
+            mask = mask[y0s:y1s, x0s:x1s]
 
             self.mask = mask
             self._coords_exist = True
